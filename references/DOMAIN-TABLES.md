@@ -116,10 +116,13 @@ benchmark AND check official docs for best practices.
 
 ---
 
-## 6. Three-File Semantics by Domain
+## 6. Knowledge Base Semantics by Domain
 
 | Concept | Research | Project/Code | Document/Design |
 |---|---|---|---|
-| `working-raw` | Hypotheses | Design options | Draft sections |
-| `proved-archive` | Falsified claims | Rejected approaches | Discarded drafts |
-| `proved-curated` | Validated findings | Confirmed decisions | Final sections |
+| `kb/raw/` notes | Hypotheses | Design options | Draft sections |
+| `kb/archive/` notes | Falsified claims | Rejected approaches | Discarded drafts |
+| `kb/curated/` notes | Validated findings | Confirmed decisions | Final sections |
+
+Each note is an individual Markdown file with YAML frontmatter.
+See `references/KNOWLEDGE-BASE.md` for full note format and lifecycle.

@@ -11,7 +11,7 @@ description: >-
   design until time runs out".
 metadata:
   author: jho6394
-  version: '3.0'
+  version: '4.1'
 ---
 
 # Forced Feedback Loop
@@ -29,13 +29,27 @@ Three non-negotiable principles:
 
 ## 1. Start Contract
 
-Write as Report #0 in `work-log.md` within 1 minute. Required fields:
+Write as Report #0 in `work-log.md` within 1 minute. Use these exact key names
+(YAML-style `key: value`). No synonyms, no abbreviations, no reordering:
 
-`task_type` (research/project/document/code/analysis/design/other) | `task_goal` |
-`in_scope` | `out_of_scope` | `min_required_minutes` (default: 5) |
-`done_definition` (3–5 bullets) | `deliverables` | `as_of_date` | `start_time`
+```
+task_type: <research|project|document|code|analysis|design|other>
+task_goal: <one-sentence objective>
+in_scope: <comma-separated list>
+out_of_scope: <comma-separated list>
+min_required_minutes: <integer, default 5>
+done_definition:
+  - <bullet 1>
+  - <bullet 2>
+  - <bullet 3>
+deliverables: <comma-separated list>
+as_of_date: <YYYY-MM-DD>
+start_time: <HH:MM system time>
+```
 
 No field may be skipped. Assume reasonable defaults and note assumptions.
+Key names are case-sensitive and must match verbatim — a typo (e.g. `tout_of_scope`)
+is a format violation.
 
 ---
 
@@ -51,7 +65,30 @@ First line is always a line-count header:
 ```
 === Report #N | lines: <L> | elapsed: <MM:SS> | type: <feedback|milestone|synthesis> ===
 ```
-`<L>` = total lines including this header.
+
+**`lines` definition (strict):** `<L>` = number of lines from this header
+(inclusive) to the last content line of this report (inclusive). Trailing blank
+lines between reports are NOT counted. The separator `---` between reports is
+NOT counted. In other words: `L = (line number of last content line) − (line
+number of header) + 1`.
+
+**Example — two consecutive reports:**
+```
+=== Report #3 | lines: 6 | elapsed: 14:30 | type: feedback ===   ← line 1 of R#3
+DIAGNOSE: Weakest decision is D2 (confidence 0.4).
+PROPOSE: Inversion — what if we use push instead of pull?
+TEST: grep codebase for event-driven patterns → 3 hits.
+UPDATE: D2 confidence raised to 0.65. New note kb/raw/...
+META: Progressing. Next loop targets D4.                         ← line 6 of R#3
+---
+=== Report #2 | lines: 4 | elapsed: 10:00 | type: feedback ===   ← line 1 of R#2
+DIAGNOSE: Gap in auth module coverage.
+PROPOSE: Add integration test for token refresh.
+TEST: Wrote test → PASS. Moved note to kb/curated/.              ← line 4 of R#2
+```
+
+Count rule: R#3 has 6 content lines (header through META line). The `---`
+separator and R#2's header are outside R#3's count.
 
 ### 2.3 Incremental Reading Protocol
 
@@ -64,38 +101,108 @@ First line is always a line-count header:
 
 ### 2.4 Relative-Coordinate Cross-Referencing
 
-Reference past reports with `K-reports-below` + `line N below` (offset to that
+Reference past reports with `K-reports-below` + `line N below` (offset from that
 report's header). Never use absolute report numbers inside report bodies.
+
+**Examples (inside Report #5 body):**
+```
+• "Contradicts finding at 2-reports-below, line 4 below"   → means Report #3, 4th line
+• "Extends proposal from 1-report-below, line 2 below"    → means Report #4, 2nd line
+• "See gap logged at 4-reports-below, line 6 below"        → means Report #1, 6th line
+```
+
+Why relative: if reports above are added or compacted, absolute `#N` references
+break. Relative offsets (`K-reports-below`) survive structural changes.
 
 ### 2.5 Writing Rules
 
 - **Append-on-top**: newest first.
 - **Immediate-write**: write every thought as it occurs. Batching = FAIL.
 - **No deletion**: corrections are new reports referencing the old one.
+- **Separator**: place a single `---` line between consecutive reports.
+
+### 2.6 Line-Count Verification
+
+After writing each report, verify the `lines:` value:
+
+```
+1. Count lines from header (inclusive) to last content line (inclusive)
+2. Exclude trailing blank lines and the --- separator
+3. If mismatch: fix the lines: value in the header immediately
+```
+
+If a mismatch is discovered later (not in the same write), do NOT edit the old
+report. Instead, write a new correction report:
+
+```
+=== Report #N | lines: 3 | elapsed: <MM:SS> | type: feedback ===
+CORRECTION: 1-report-below header declares lines: 13, actual is 12.
+This report acknowledges the discrepancy. Incremental-read offset adjusted.
+```
+
+If a scripting environment is available, run a lint check after each loop:
+
+```bash
+# Verify all lines: values in work-log.md
+awk '/^=== Report/{if(NR>1 && declared!=count){print "MISMATCH at line "start": declared="declared" actual="count} start=NR; match($0,/lines: ([0-9]+)/,a); declared=a[1]; count=0} /^=== Report/||!/^(---|$)/{count++} END{if(declared!=count) print "MISMATCH at line "start": declared="declared" actual="count}' work-log.md
+```
+
+Lint failure does not block the loop but MUST be corrected before the next
+report is written.
 
 ---
 
-## 3. Domain Work Files
+## 3. Knowledge Base (Local Memory)
 
-Three files for every task type:
+Every item lives in its own Markdown file with YAML frontmatter, organized in
+three directories reflecting verification state:
 
-| File | Purpose |
-|---|---|
-| `working-raw.md` | Unverified ideas, brainstorming, rough plans |
-| `proved-archive.md` | Rejected/falsified items with reason + evidence |
-| `proved-curated.md` | Validated items, confirmed decisions |
+```
+kb/
+├── raw/           # Unverified ideas, brainstorming, rough plans
+├── archive/       # Rejected/falsified items with reason + evidence
+├── curated/       # Validated items, confirmed decisions
+└── _index.md      # Tag→file lookup (auto-maintained)
+```
 
-State transitions: new → `working-raw` → tested false → `proved-archive` / tested
-valid → `proved-curated`. Items move, never delete.
+State transitions: new → `kb/raw/` → tested false → `kb/archive/` / tested
+valid → `kb/curated/`. Items move (file relocated), never deleted.
 
-For domain-specific semantics of these files, load `references/DOMAIN-TABLES.md` § 6.
+For note format, frontmatter schema, tag taxonomy, cross-referencing rules,
+lifecycle operations, and migration guide: load `references/KNOWLEDGE-BASE.md`.
+
+For domain-specific semantics: load `references/DOMAIN-TABLES.md` § 6.
 
 ### 3.1 Decision-Evidence Mapping
 
 Every key decision gets `D#` with linked `E#` entries. Each `E#` requires `fetched_at`
 and `method`. No key decision without evidence. Evidence types can be mixed.
+Decisions and evidence are stored inside individual note files, not in a
+monolithic document.
 
 For domain-specific evidence types and examples, load `references/DOMAIN-TABLES.md` § 1.
+
+### 3.2 Search Sub-Agent
+
+Do NOT load the entire KB into context. Delegate lookups to a search sub-agent.
+
+**Use search sub-agent when:**
+- Before creating a new proposal ("prior work on this topic?")
+- During DIAGNOSE ("weakest items?")
+- During TEST ("evidence for/against?")
+- During META-ASSESS ("retreading ground?")
+- When resuming a session ("latest state?")
+
+**Skip sub-agent when:**
+- KB has < 10 notes (read `_index.md` + files directly)
+- Note was just created in current iteration
+- Quick count check (read `_index.md` header only)
+
+Sub-agent reads `_index.md` for tag lookup → reads matching notes (max 10) →
+returns top 5 results with {id, title, status, confidence, summary}, relevant
+evidence, contradictions, and gaps.
+
+For the full search protocol and query format: load `references/KNOWLEDGE-BASE.md` § 6.
 
 ---
 
@@ -117,7 +224,7 @@ WHILE elapsed_minutes < min_required_minutes:
     Strategies: INVERSION | COMBINATION | ANALOGY | DECOMPOSITION |
     EDGE CASE | TEMPORAL | STAKEHOLDER SHIFT | CONSTRAINT FLIP |
     TECHNOLOGY SWAP
-    Log immediately in working-raw.md.
+    Create new note in kb/raw/. Update kb/_index.md.
 
     For domain-specific proposal terminology, load `references/DOMAIN-TABLES.md` § 4.
 
@@ -128,8 +235,9 @@ WHILE elapsed_minutes < min_required_minutes:
     For domain-specific test methods, load `references/DOMAIN-TABLES.md` § 5.
 
   STEP 4 — UPDATE
-    Move tested items to proved-archive or proved-curated.
-    Update confidence scores. Write new report to work-log.md.
+    Move tested notes: kb/raw/ → kb/archive/ (falsified) or kb/curated/ (validated).
+    Update confidence scores in note frontmatter. Rebuild kb/_index.md.
+    Write new report to work-log.md.
 
   STEP 5 — META-ASSESS
     "Am I progressing or circling?" / "Different angle?" / "Expert challenge?"
@@ -184,11 +292,13 @@ For domain-specific tag names, load `references/DOMAIN-TABLES.md` § 3.
 
 ## 8. Uncertainty and Gap Control
 
-Maintain in `proved-curated.md`:
-- **Uncertainty Register**: Item | Type (epistemic/aleatory) | Likelihood | Impact | Next Test
-- **Data-Gap Register**: Gap ID | Missing Data | Impact | Fallback | Confidence Penalty | Follow-up
+Maintain as dedicated notes in `kb/curated/`:
+- `kb/curated/UNCERTAINTY-REGISTER.md`: Item | Type (epistemic/aleatory) | Likelihood | Impact | Next Test
+- `kb/curated/GAP-REGISTER.md`: Gap ID | Missing Data | Impact | Fallback | Confidence Penalty | Follow-up
 
-If a tool/search fails: run fallback → lower confidence → log `GAP-#`.
+These are the only notes edited in-place (not append-only). Tag them `type/register`.
+
+If a tool/search fails: run fallback → lower confidence → log `GAP-#` in the gap register.
 
 ---
 
@@ -196,10 +306,10 @@ If a tool/search fails: run fallback → lower confidence → log `GAP-#`.
 
 Complete once before entering the feedback loop:
 
-**A. Ideation** → `working-raw.md`: candidates, uncertainties, failure points.
-**B. Evidence** → collect, map to claims. Log gaps.
-**C. Validation** → disprove top claims. Move to archive or curated.
-**D. First Synthesis** → write synthesis report. Confidence scores.
+**A. Ideation** → create notes in `kb/raw/`: candidates, uncertainties, failure points.
+**B. Evidence** → collect, map to claims in note evidence sections. Log gaps.
+**C. Validation** → disprove top claims. Move notes to `kb/archive/` or `kb/curated/`.
+**D. First Synthesis** → write synthesis report. Update confidence scores in notes.
 
 Then enter the Forced Feedback Loop (Section 4).
 
@@ -217,11 +327,11 @@ assumptions, key decision points with alternatives, rerun notes.
 Before starting work and before the FAIL Gate, load and review:
 `references/PROHIBITIONS.md`
 
-24 prohibited behaviors across 5 categories (Time, Reasoning, Files, Process,
+27 prohibited behaviors across 5 categories (Time, Reasoning, Files, Process,
 Communication). Any violation = automatic FAIL. Key highlights:
 - No early termination, idle waiting, or quality shortcuts (T1–T4)
 - No self-confirmation, fabrication, or skipped falsification (R1–R8)
-- No batched writes, deletions, or absolute-coordinate refs (F1–F6)
+- No batched writes, deletions, absolute-coordinate refs, full-KB loading, missing frontmatter, or uncorrected line-count mismatches (F1–F9)
 - No scope drift, silent abandonment, or unchecked FAIL gates (P1–P6)
 - No fake confidence, hidden uncertainty, hollow offers, or filler (X1–X6)
 
@@ -233,7 +343,8 @@ Mark `INCOMPLETE` if ANY missing:
 
 - [ ] Start contract (§1)
 - [ ] Work-log with formatted reports (§2)
-- [ ] Three domain work files (§3)
+- [ ] KB directory with notes in correct dirs (§3)
+- [ ] Search sub-agent used for KB queries when applicable (§3.2)
 - [ ] Minimum runtime consumed by active work (§5)
 - [ ] D#-E# mapping (§3.1)
 - [ ] At least one feedback loop completed (§4)
@@ -242,6 +353,8 @@ Mark `INCOMPLETE` if ANY missing:
 - [ ] Reproducibility section (§10)
 - [ ] No Absolute Prohibition violated (§11 / `references/PROHIBITIONS.md`)
 - [ ] Every report has line-count header
+- [ ] All `lines:` values verified correct (§2.6)
+- [ ] Report #0 uses exact key names from §1 schema
 - [ ] Cross-references use relative coordinates
 
 No "conditional pass."
@@ -270,5 +383,6 @@ total_proposals_falsified: <N>
 
 ## 14. Multi-Session Continuity
 
-When resuming: read `work-log.md` incrementally (§2.3) → read `proved-curated.md` →
+When resuming: read `kb/_index.md` for current state → use search sub-agent for
+recent notes (last 5 created/updated) → read `work-log.md` incrementally (§2.3) →
 create Report #(N+1) → continue feedback loop → use relative coordinates for all refs.

@@ -1,7 +1,7 @@
 # Absolute Prohibitions (NEVER-DO List)
 
 Load this file at the start of every run and before the FAIL Gate check.
-Violation of any item is an automatic FAIL.
+Violation of any item is an automatic FAIL. (27 items across 5 categories.)
 
 ---
 
@@ -36,7 +36,10 @@ Violation of any item is an automatic FAIL.
 | F3 | Use absolute report numbers for cross-references inside report bodies | Only relative coordinates survive compaction/pruning |
 | F4 | Write a report without the line-count header | Breaks the incremental reading protocol |
 | F5 | Hold findings only in context memory without writing to files | If it's not in a file, it doesn't exist for future sessions |
-| F6 | Mix unverified and verified items in `proved-curated.md` | Curated file is for verified/validated items only; unverified goes to `working-raw.md` |
+| F6 | Mix unverified and verified notes in `kb/curated/` | Curated dir is for verified/validated items only; unverified goes to `kb/raw/` |
+| F7 | Load the entire KB into context instead of using the search sub-agent | Defeats the purpose of the KB architecture; use the search protocol (§ 3.2) |
+| F8 | Create a note without YAML frontmatter or skip required fields | Frontmatter is the search index source; incomplete metadata = unsearchable note |
+| F9 | Leave a `lines:` mismatch uncorrected past the current loop | Breaks incremental reading protocol; fix immediately or write correction report (§ 2.6) |
 
 ## P. Process & Scope Violations
 
@@ -44,7 +47,7 @@ Violation of any item is an automatic FAIL.
 |---|---|---|
 | P1 | Skip the Start Contract and jump straight into work | The contract defines success criteria; without it, there's no FAIL gate |
 | P2 | Silently change scope without logging it | Scope changes must be a logged report with rationale |
-| P3 | Abandon a failing approach without logging why in `proved-archive.md` | Rejected approaches are knowledge; silent abandonment loses information |
+| P3 | Abandon a failing approach without logging why in `kb/archive/` | Rejected approaches are knowledge; silent abandonment loses information |
 | P4 | Work on `out_of_scope` items defined in the Start Contract | Scope discipline prevents drift; log a proposal to change scope if needed |
 | P5 | Produce a deliverable without passing it through at least one validation loop | No first-draft-is-final; everything must survive at least one feedback cycle |
 | P6 | Declare PASS on the FAIL Gate with any item still unchecked | Every checkbox must be explicitly verified; no "close enough" |
