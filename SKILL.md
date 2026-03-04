@@ -1,17 +1,19 @@
 ---
 name: forced-feedback-loop
 description: >-
-  Time-boxed forced feedback loop skill for any structured task — research, project work,
-  document creation, code development, or analysis. Enforces continuous self-feedback cycles
-  that synthesize existing information into new hypotheses. All work is documented in a
-  structured work-log with line-count-based incremental reading and relative-coordinate
-  cross-referencing. The agent never stops voluntarily before the allocated time expires.
-  Use when the user requests sustained, iterative deep work with a time budget — e.g.
-  "spend 30 minutes researching X", "work on this project for 1 hour", "iterate on this
-  design until time runs out".
+  Time-boxed or count-boxed forced feedback loop skill for any structured task —
+  research, project work, document creation, code development, or analysis.
+  Enforces continuous self-feedback cycles that synthesize existing information
+  into new hypotheses (convergent) and explore adjacent unknowns (divergent).
+  All work is documented in a structured work-log with line-count-based
+  incremental reading and relative-coordinate cross-referencing. The agent never
+  stops voluntarily before the allocated budget expires. Use when the user
+  requests sustained, iterative deep work with a time or loop-count budget —
+  e.g. "spend 30 minutes researching X", "run 10 feedback loops on this code",
+  "iterate on this design until time runs out".
 metadata:
   author: jho6394
-  version: '4.2'
+  version: '5.0'
 ---
 
 # Forced Feedback Loop
@@ -37,7 +39,8 @@ task_type: <research|project|document|code|analysis|design|other>
 task_goal: <one-sentence objective>
 in_scope: <comma-separated list>
 out_of_scope: <comma-separated list>
-min_required_minutes: <integer, default 5>
+min_required_minutes: <integer|null, default 5>
+min_required_loops: <integer|null, default null>
 done_definition:
   - <bullet 1>
   - <bullet 2>
@@ -46,6 +49,15 @@ deliverables: <comma-separated list>
 as_of_date: <YYYY-MM-DD>
 start_time: <HH:MM system time>
 ```
+
+**Termination mode** — set by which fields are non-null:
+
+| `min_required_minutes` | `min_required_loops` | Mode |
+|---|---|---|
+| set | null | **Time-based**: run until time expires |
+| null | set | **Count-based**: run exactly N loops |
+| set | set | **Both**: run until BOTH thresholds are met |
+| null | null | Invalid — defaults to `min_required_minutes: 5` |
 
 No field may be skipped. Assume reasonable defaults and note assumptions.
 Key names are case-sensitive and must match verbatim — a typo (e.g. `tout_of_scope`)
@@ -210,10 +222,15 @@ For the full search protocol and query format: load `references/KNOWLEDGE-BASE.m
 
 ### 4.1 Core Loop
 
-After the initial pass (Section 9), enter this loop until time expires:
+After the initial pass (Section 9), enter this loop until the termination
+condition is met:
 
 ```
-WHILE elapsed_minutes < min_required_minutes:
+WHILE NOT termination_reached:
+  # termination_reached =
+  #   Time mode:  elapsed_minutes >= min_required_minutes
+  #   Count mode: completed_loops >= min_required_loops
+  #   Both mode:  BOTH conditions satisfied
 
   STEP 1 — DIAGNOSE
     Read latest 1–3 reports (incremental protocol). Identify:
@@ -287,12 +304,15 @@ Constraint relaxation.
 
 ---
 
-## 5. Time Execution Policy
+## 5. Execution Boundary Policy
 
 - **Idle waiting is FORBIDDEN.** No sleep, polling, or non-productive padding.
-- While `elapsed < min_required_minutes`, MUST NOT: declare complete, ask user to
-  stop, produce final summary, or say "this is sufficient."
-- Check elapsed time each loop. Log in every report header.
+- While the termination condition (§1) is unmet, MUST NOT: declare complete,
+  ask user to stop, produce final summary, or say "this is sufficient."
+- **Time mode / Both mode**: check elapsed time each loop. Log in every report header.
+- **Count mode**: log `loop N of M` in every report header. Elapsed time is
+  still tracked for reporting but does not trigger termination.
+- Every report header always includes `elapsed: <MM:SS>` regardless of mode.
 
 ---
 
@@ -371,7 +391,7 @@ Mark `INCOMPLETE` if ANY missing:
 - [ ] Work-log with formatted reports (§2)
 - [ ] KB directory with notes in correct dirs (§3)
 - [ ] Search sub-agent used for KB queries when applicable (§3.2)
-- [ ] Minimum runtime consumed by active work (§5)
+- [ ] Execution boundary met — time, count, or both (§5)
 - [ ] D#-E# mapping (§3.1)
 - [ ] At least one feedback loop completed (§4)
 - [ ] At least one novel proposal in loops (§4.2)
@@ -389,11 +409,12 @@ No "conditional pass."
 
 ## 13. End Block
 
-Write ONLY after `elapsed_minutes >= min_required_minutes`:
+Write ONLY after the termination condition (§1) is met:
 
 ```
-=== FINAL REPORT | elapsed: <MM:SS> ===
+=== FINAL REPORT | elapsed: <MM:SS> | loops: <N> ===
 end_time: <system time>
+termination_mode: <time|count|both>
 total_feedback_loops: <N>
 total_proposals_generated: <N> (convergent: <n1>, divergent: <n2>)
 total_proposals_validated: <N>

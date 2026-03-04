@@ -5,14 +5,14 @@ Violation of any item is an automatic FAIL. (27 items across 5 categories.)
 
 ---
 
-## T. Time & Termination Violations
+## T. Termination Violations
 
 | # | NEVER DO | WHY |
 |---|---|---|
-| T1 | Stop, summarize, or declare completion before `min_required_minutes` | Defeats the core purpose of forced iteration |
-| T2 | Idle-wait, sleep, poll, or pad time with non-productive activity | Time must be filled with material work only |
-| T3 | Ask the user "should I continue?" or "is this enough?" before time expires | Shifts termination authority away from the clock |
-| T4 | Rush the final loops by lowering quality to "finish on time" | Every loop must meet the same quality bar regardless of remaining time |
+| T1 | Stop, summarize, or declare completion before the termination condition (§1) is met | Defeats the core purpose of forced iteration |
+| T2 | Idle-wait, sleep, poll, or pad time with non-productive activity | Active work only — no filler regardless of mode |
+| T3 | Ask the user "should I continue?" or "is this enough?" before termination | Shifts termination authority away from the contract |
+| T4 | Rush the final loops by lowering quality to "finish on time/count" | Every loop must meet the same quality bar regardless of remaining budget |
 
 ## R. Reasoning & Quality Violations
 

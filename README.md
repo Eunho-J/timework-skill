@@ -1,177 +1,191 @@
 # Forced Feedback Loop
 
-AI 에이전트가 주어진 시간 동안 절대 멈추지 않고, 스스로 피드백 루프를 돌며 작업 품질을 끌어올리는 스킬.
+**[English](README.md)** | **[한국어](README.ko.md)** | **[日本語](README.ja.md)** | **[中文](README.zh.md)**
 
-## 이런 문제를 해결합니다
+An agent skill that forces continuous self-feedback loops until the budget (time or loop count) is exhausted, steadily improving work quality without ever stopping voluntarily.
 
-- AI가 대충 한 번 훑고 "끝났습니다" 하고 멈추는 현상
-- "다음에 이렇게 해줄게요" 같은 말만 번지르르한 제안
-- 작업 내역이 컨텍스트에만 남아서 세션이 끝나면 증발하는 문제
-- 자기가 내린 결론을 검증 없이 확정하는 확증 편향
-- 기존 정보만 돌려쓰면서 탐색 범위가 점점 좁아지는 현상
-- 아이디어가 쌓일수록 파일이 거대해져서 검색이 안 되는 문제
+## Problems This Solves
 
-## 핵심 원리
+- AI does one shallow pass and declares "done"
+- Hollow offers like "I can also do X next" instead of actually doing it
+- Work history lives only in ephemeral context and vanishes after the session
+- Confirmation bias — the agent validates its own conclusions without real testing
+- Search space narrows over time when the agent only recombines existing information
+- Knowledge files grow monolithic and become unsearchable as ideas accumulate
 
-1. **시간이 끝날 때까지 절대 멈추지 않는다** — `min_required_minutes` 동안 능동적 작업만 수행
-2. **매 루프마다 새로운 가설을 만든다** — 기존 정보 조합(수렴) + 새 정보 탐색(발산) 양방향으로 제안 생성
-3. **모든 것을 파일에 기록한다** — `work-log.md`에 역순 리포트로 누적, 세션 간 연속성 보장
-4. **개별 노트 + 검색으로 지식을 관리한다** — Obsidian 스타일 KB에 아이디어를 개별 파일로 저장, 검색 서브에이전트가 필요한 것만 꺼내 씀
+## Core Principles
 
-## 파일 구조
+1. **Never stop before the budget is spent** — active work only during `min_required_minutes` and/or `min_required_loops`
+2. **Generate new proposals every loop** — both convergent (recombine known) and divergent (explore unknown)
+3. **Write everything to files** — reverse-chronological reports in `work-log.md`, session continuity guaranteed
+4. **Manage knowledge as individual notes** — Obsidian-style KB with per-idea files, searched by a dedicated sub-agent
+
+## Skill File Structure
 
 ```
 forced-feedback-loop/
-├── SKILL.md                        # 핵심 실행 정책 (에이전트가 활성화 시 로드)
+├── SKILL.md                        # Core execution policy (loaded on activation)
 └── references/
-    ├── DOMAIN-TABLES.md            # 도메인별 상세 테이블 (필요 시 lazy load)
-    ├── PROHIBITIONS.md             # 27개 금지 항목 (필요 시 lazy load)
-    └── KNOWLEDGE-BASE.md           # KB 시스템 상세: 노트 형식, 태그, 검색 프로토콜
+    ├── DOMAIN-TABLES.md            # Domain-specific tables (lazy loaded)
+    ├── PROHIBITIONS.md             # 27 prohibited behaviors (lazy loaded)
+    └── KNOWLEDGE-BASE.md           # KB system: note format, tags, search protocol
 ```
 
-## 에이전트가 실행 중 생성하는 산출물
+## Runtime Artifacts
+
+The agent creates these files in the working directory during execution:
 
 ```
-<작업 디렉터리>/
-├── work-log.md                     # 전체 작업 이력 (역순 리포트 스택)
+<working-directory>/
+├── work-log.md                     # Full work history (reverse-chronological report stack)
 └── kb/                             # Knowledge Base (Obsidian-like)
-    ├── _index.md                   # 태그→파일 자동 인덱스
-    ├── raw/                        # 미검증 아이디어, 초안
+    ├── _index.md                   # Tag → file auto-index
+    ├── raw/                        # Unverified ideas, drafts
     │   ├── 20260303-143000-xxx.md
     │   └── ...
-    ├── archive/                    # 기각된 항목 (사유 포함)
+    ├── archive/                    # Rejected items (with reason)
     │   ├── 20260303-150000-yyy.md
     │   └── ...
-    └── curated/                    # 검증 완료 항목
+    └── curated/                    # Validated items
         ├── 20260303-160000-zzz.md
-        ├── UNCERTAINTY-REGISTER.md # 불확실성 레지스터
-        └── GAP-REGISTER.md         # 데이터 갭 레지스터
+        ├── UNCERTAINTY-REGISTER.md # Uncertainty register
+        └── GAP-REGISTER.md         # Data gap register
 ```
 
-### 왜 개별 노트인가?
+### Why Individual Notes?
 
-기존의 3개 모놀리식 파일(`working-raw.md`, `proved-archive.md`, `proved-curated.md`)은
-아이디어가 쌓일수록 거대해져서:
+A monolithic 3-file approach grows unwieldy as ideas accumulate:
 
-- 전체를 컨텍스트에 로드하면 토큰 낭비
-- 관련 항목만 찾아 읽기 불가능
-- 세션이 길어질수록 검색 효율 급감
+- Loading everything into context wastes tokens
+- No way to retrieve only relevant items
+- Search efficiency degrades as sessions get longer
 
-KB 시스템은 각 아이디어/결정/증거를 개별 Markdown 파일로 저장하고, YAML frontmatter
-(태그, 상태, 신뢰도 등)로 메타데이터를 붙여서 검색 서브에이전트가 필요한 것만
-정확히 꺼내 쓸 수 있게 합니다.
+The KB system stores each idea/decision/evidence as an individual Markdown file with YAML frontmatter (tags, status, confidence, etc.), so the search sub-agent can retrieve exactly what's needed.
 
-### 검색 서브에이전트
+### Search Sub-Agent
 
-에이전트가 KB에서 정보를 찾을 때, 전체를 읽지 않고 검색 서브에이전트에 위임합니다:
+When the agent looks up information in the KB, it delegates to a search sub-agent instead of reading everything:
 
-1. `_index.md`에서 태그 기반 검색
-2. 매칭된 노트 파일 읽기 (최대 10개)
-3. 상위 5개 결과를 {id, 제목, 상태, 신뢰도, 요약} 형태로 반환
-4. 관련 증거, 모순점, 갭도 함께 반환
+1. Tag-based lookup via `_index.md`
+2. Read matching note files (max 10)
+3. Return top 5 results as {id, title, status, confidence, summary}
+4. Include relevant evidence, contradictions, and gaps
 
-KB에 노트가 10개 미만이면 서브에이전트 없이 직접 읽습니다.
+If the KB has fewer than 10 notes, the agent reads files directly without a sub-agent.
 
-## 지원 도메인
+## Supported Domains
 
-| task_type | 용도 |
+| task_type | Use case |
 |---|---|
-| `research` | 조사, 리서치 |
-| `code` | 개발, 엔지니어링 |
-| `design` | UI/UX 디자인 |
-| `document` | 문서 작성 |
-| `analysis` | 데이터 분석 |
-| `project` | 프로젝트 관리 |
-| `other` | 기타 |
+| `research` | Investigation, literature review |
+| `code` | Development, engineering |
+| `design` | UI/UX design |
+| `document` | Writing, documentation |
+| `analysis` | Data analysis |
+| `project` | Project management |
+| `other` | Anything else |
 
-도메인에 따라 증거 유형, 소스 계층, 태그 체계, 테스트 방법이 자동으로 적응합니다.
-상세 매핑은 `references/DOMAIN-TABLES.md`에 정의되어 있습니다.
+Evidence types, source hierarchy, tag systems, and test methods adapt automatically per domain. See `references/DOMAIN-TABLES.md` for detailed mappings.
 
-## 사용법
+## Usage
 
-### 설치
+### Installation
 
-다운로드한 zip을 해제하고, 사용하는 에이전트의 스킬 디렉터리에 배치합니다.
+Extract the downloaded zip and place it in your agent's skill directory.
 
-| 에이전트 | 경로 |
+| Agent | Path |
 |---|---|
-| Perplexity | User Settings에서 업로드 |
+| Perplexity | Upload via User Settings |
 | OpenAI Codex | `~/.codex/skills/forced-feedback-loop/` |
 | Claude Code | `~/.claude/skills/forced-feedback-loop/` |
 | Augment | `~/.augment/skills/forced-feedback-loop/` |
-| VS Code (Copilot) | `.agents/skills/forced-feedback-loop/` (프로젝트 루트) |
+| VS Code (Copilot) | `.agents/skills/forced-feedback-loop/` (project root) |
 
-### 실행 예시
+### Examples
 
-**리서치 작업:**
+**Research:**
 ```
-30분 동안 "한국 전기차 배터리 시장 동향"을 조사해줘.
-```
-
-**코드 개발:**
-```
-20분 동안 이 API 서버의 응답 속도를 개선해. 현재 p99 latency가 500ms야.
+Spend 30 minutes researching "EV battery market trends in South Korea".
 ```
 
-**디자인:**
+**Code:**
 ```
-15분 동안 이 대시보드 레이아웃의 사용성을 개선해줘.
-```
-
-**문서 작성:**
-```
-25분 동안 이 기술 제안서의 논증 구조를 강화해줘.
+Spend 20 minutes improving this API server's response time. Current p99 latency is 500ms.
 ```
 
-시간을 명시하면 에이전트가 자동으로 스킬을 활성화하고, 해당 시간이 끝날 때까지
-피드백 루프를 돌립니다.
+**Design:**
+```
+Spend 15 minutes improving the usability of this dashboard layout.
+```
 
-### 수렴 × 발산 이중 제안
+**Document:**
+```
+Spend 25 minutes strengthening the argument structure of this technical proposal.
+```
 
-매 루프의 제안 단계에서 두 가지 모드를 번갈아 사용합니다:
+**Count-based (no time limit):**
+```
+Run 10 feedback loops to improve this function's error handling.
+```
 
-| 모드 | 방향 | 설명 |
+**Both (time + count):**
+```
+Spend at least 20 minutes AND run at least 5 loops optimizing this query.
+```
+
+Specify a time budget, a loop count, or both. The agent activates the skill automatically and runs feedback loops until the termination condition is met.
+
+### Termination Modes
+
+| `min_required_minutes` | `min_required_loops` | Behavior |
 |---|---|---|
-| **수렴 (Convergent)** | 기존 정보 → 새 가설 | KB에 있는 2개 이상의 발견을 조합해서 새 제안 생성 |
-| **발산 (Divergent)** | 미탐색 영역 → 새 가설 | KB가 아직 답하지 못하는 인접 질문을 식별하고, 새 정보를 적극 탐색해서 검증 |
+| set | — | **Time-based**: run until time expires |
+| — | set | **Count-based**: run exactly N loops |
+| set | set | **Both**: run until both thresholds are met |
 
-연속 3루프 중 최소 1회는 발산 제안이 포함되어야 합니다. 수렴만 계속하면 탐색 범위가 좁아집니다.
-발산 제안은 `task_goal` 대비 관련성 체크를 통과해야 하므로, 주제를 벗어나지는 않습니다.
+If neither is specified, defaults to 5 minutes.
 
-### work-log.md 읽는 법
+### Convergent × Divergent Dual Proposals
 
-리포트가 위에서부터 최신순으로 쌓입니다. 각 리포트의 첫 줄에 해당 리포트의 줄 수가 적혀 있어서,
-필요한 만큼만 단계적으로 읽을 수 있습니다.
+Each loop's proposal step alternates between two modes:
+
+| Mode | Direction | Description |
+|---|---|---|
+| **Convergent** | Known → new hypothesis | Combine 2+ existing findings from the KB into a new proposal |
+| **Divergent** | Unknown → new hypothesis | Identify an adjacent question the KB can't answer yet, then actively search for new information to test it |
+
+At least 1 divergent proposal must appear in every 3 consecutive loops. Pure convergence narrows the search space.
+Divergent proposals must pass a relevance check against `task_goal`, so they stay on-topic.
+
+### Reading work-log.md
+
+Reports stack newest-on-top. The first line of each report declares its line count, enabling incremental reading:
 
 ```
-=== Report #3 | lines: 6 | elapsed: 14:30 | type: feedback ===   ← 1번 줄
+=== Report #3 | lines: 6 | elapsed: 14:30 | type: feedback ===   ← line 1
 DIAGNOSE: Weakest decision is D2 (confidence 0.4).
 PROPOSE: Inversion — what if we use push instead of pull?
 TEST: grep codebase for event-driven patterns → 3 hits.
 UPDATE: D2 confidence raised to 0.65.
-META: Progressing. Next loop targets D4.                         ← 6번 줄
+META: Progressing. Next loop targets D4.                         ← line 6
 ---
 === Report #2 | lines: 4 | elapsed: 10:00 | type: feedback ===
 ...
 ```
 
-**`lines:` 기준:** 헤더 줄(포함)부터 마지막 콘텐츠 줄(포함)까지. `---` 구분자와 리포트 사이의 빈 줄은 카운트에 포함하지 않습니다.
-에이전트는 매 리포트 작성 직후 이 값을 검증하고, 스크립팅 환경이면 lint 명령을 실행합니다.
+**`lines:` rule:** Count from the header line (inclusive) to the last content line (inclusive). The `---` separator and blank lines between reports are excluded.
+The agent verifies this value after writing each report and runs a lint check in scripting environments.
 
-과거 리포트를 참조할 때는 상대좌표(`K-reports-below`, `line N below`)를 사용하므로,
-로그가 정리되거나 압축되어도 참조가 깨지지 않습니다.
+Cross-references use relative coordinates (`K-reports-below`, `line N below`), so references survive log compaction.
 
-## 멀티 세션 사용
+## Multi-Session Continuity
 
-이전 세션의 `work-log.md`와 `kb/` 디렉터리가 남아 있으면, 다음 세션에서 이어서 작업할 수 있습니다.
-에이전트가 `kb/_index.md`를 읽고 검색 서브에이전트로 최근 노트를 확인한 뒤, 이전 기록을 복원하고
-이어서 피드백 루프를 돌립니다.
+If `work-log.md` and the `kb/` directory remain from a previous session, the agent picks up where it left off. It reads `kb/_index.md`, uses the search sub-agent to review recent notes, restores context via incremental reading, and continues the feedback loop.
 
 ```
-어제 작업하던 배터리 시장 리서치를 이어서 20분 더 해줘.
+Continue the battery market research from yesterday for another 20 minutes.
 ```
 
-## 호환성
+## Compatibility
 
-[Agent Skills 오픈 스펙](https://agentskills.io/specification)을 따르며,
-이 스펙을 지원하는 모든 에이전트에서 동작합니다.
+Follows the [Agent Skills open spec](https://agentskills.io/specification) and works with any agent that supports this spec.
